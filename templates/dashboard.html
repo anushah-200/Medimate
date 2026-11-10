@@ -12,14 +12,39 @@
 </head>
 <body>
     <h1>MediMate Dashboard</h1>
+    
     <div class="card">
         <h3>System Status</h3>
-        <p>Connection: <span class="status-badge">Online</span></p>
+        <p>Connection: <span id="connection-status" class="status-badge">Online</span></p>
         <p>Backend API: Running on Flask</p>
+        <p>Last Sync: <span id="last-sync">Never</span></p>
     </div>
+
     <div class="card">
         <h3>Today's Schedule & Events</h3>
-        <p>Waiting for events from ESP32...</p>
+        <p id="latest-event">Waiting for events from ESP32...</p>
     </div>
+
+    <!-- JavaScript to auto-refresh data every 3 seconds -->
+    <script>
+        async function fetchSystemStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                // Update HTML elements with the latest data from Flask
+                document.getElementById('last-sync').innerText = data.last_sync;
+                document.getElementById('latest-event').innerText = "Latest Event: " + data.last_event;
+            } catch (error) {
+                console.error('Failed to fetch status:', error);
+                document.getElementById('connection-status').innerText = "Disconnected";
+                document.getElementById('connection-status').style.background = "#e74c3c";
+            }
+        }
+
+        // Run immediately, then check every 3 seconds
+        fetchSystemStatus();
+        setInterval(fetchSystemStatus, 3000);
+    </script>
 </body>
 </html>
