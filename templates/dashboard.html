@@ -1,50 +1,166 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>MediMate Dashboard</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f6f9; color: #333; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h1 { color: #2c3e50; }
-        .status-badge { display: inline-block; padding: 6px 12px; border-radius: 4px; background: #27ae60; color: white; font-weight: bold; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MediMate medicine reminder dashboard">
+  <title>MediMate Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script src="{{ url_for('static', filename='scripts.js') }}" defer></script>
 </head>
 <body>
-    <h1>MediMate Dashboard</h1>
-    
-    <div class="card">
-        <h3>System Status</h3>
-        <p>Connection: <span id="connection-status" class="status-badge">Online</span></p>
-        <p>Backend API: Running on Flask</p>
-        <p>Last Sync: <span id="last-sync">Never</span></p>
-    </div>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand" aria-label="MediMate">
+        <svg class="brand-logo" viewBox="0 0 284 204" role="img" aria-labelledby="logoTitle">
+          <title id="logoTitle">MediMate</title>
+          <rect width="284" height="204" fill="#E8D1A7"/>
+          <rect x="49" y="23" width="130" height="130" rx="24" fill="#442D1C"/>
+          <g fill="none" stroke="#E8D1A7" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+            <path d="M68 65h19l12 12M68 111h19l12-12M135 77l12-12h13M135 99l12 12h13"/>
+          </g>
+          <g fill="#9D9167">
+            <circle cx="68" cy="65" r="4.5"/><circle cx="68" cy="111" r="4.5"/>
+            <circle cx="160" cy="65" r="4.5"/><circle cx="160" cy="111" r="4.5"/>
+          </g>
+          <g transform="rotate(-45 114 89)">
+            <rect x="99" y="78" width="30" height="22" rx="11" fill="#E8D1A7"/>
+            <path d="M114 78h4a11 11 0 0 1 0 22h-4z" fill="#743014"/>
+            <rect x="99" y="78" width="30" height="22" rx="11" fill="none" stroke="#743014" stroke-width="3"/>
+            <path d="M114 80v18" stroke="#84592B" stroke-width="2"/>
+          </g>
+          <text x="142" y="200" fill="#442D1C" font-family="IBM Plex Sans, sans-serif" font-size="30" text-anchor="middle">MediMate</text>
+        </svg>
+      </div>
 
-    <div class="card">
-        <h3>Today's Schedule & Events</h3>
-        <p id="latest-event">Waiting for events from ESP32...</p>
-    </div>
+      <nav class="navigation" aria-label="Main navigation">
+        <button class="nav-link active" type="button" data-section="dashboard"><span aria-hidden="true">⌂</span>Dashboard</button>
+        <button class="nav-link" type="button" data-section="schedules"><span aria-hidden="true">▦</span>Schedules</button>
+        <button class="nav-link" type="button" data-section="history"><span aria-hidden="true">◷</span>Event History</button>
+        <button class="nav-link" type="button" data-section="settings"><span aria-hidden="true">⚙</span>Settings</button>
+      </nav>
 
-    <!-- JavaScript to auto-refresh data every 3 seconds -->
-    <script>
-        async function fetchSystemStatus() {
-            try {
-                const response = await fetch('/api/status');
-                const data = await response.json();
-                
-                // Update HTML elements with the latest data from Flask
-                document.getElementById('last-sync').innerText = data.last_sync;
-                document.getElementById('latest-event').innerText = "Latest Event: " + data.last_event;
-            } catch (error) {
-                console.error('Failed to fetch status:', error);
-                document.getElementById('connection-status').innerText = "Disconnected";
-                document.getElementById('connection-status').style.background = "#e74c3c";
-            }
-        }
+      <div class="sidebar-status">
+        <span class="status-dot"></span>
+        <div><strong>MediMate</strong><small>Connected to Flask</small></div>
+      </div>
+    </aside>
 
-        // Run immediately, then check every 3 seconds
-        fetchSystemStatus();
-        setInterval(fetchSystemStatus, 3000);
-    </script>
+    <main class="main-content">
+      <header class="topbar">
+        <button class="menu-button" id="menuButton" type="button" aria-label="Open navigation">☰</button>
+        <div class="page-heading">
+          <h1 id="pageTitle">Dashboard</h1>
+          <p id="currentDate"></p>
+        </div>
+        <div class="topbar-actions">
+          <span class="connection-badge">
+            <span class="status-dot" id="connectionDot"></span>
+            <span id="connectionLabel">Loading...</span>
+          </span>
+          <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh dashboard" title="Refresh">↻</button>
+        </div>
+      </header>
+
+      <section class="page-section active" id="dashboardSection">
+        <section class="welcome-banner">
+          <div>
+            <span class="eyebrow">MEDIMATE / DAILY OVERVIEW</span>
+            <h2>Your routine, at a glance.</h2>
+            <p>Keep today's medicines and device activity in view.</p>
+          </div>
+          <button class="primary-button light-button" type="button" data-open-modal><span aria-hidden="true">+</span>Add reminder</button>
+        </section>
+
+        <div class="stats-grid">
+          <article class="stat-card"><span class="stat-icon stat-icon-primary" aria-hidden="true">▦</span><div><p>Today's reminders</p><strong id="totalReminderCount">0</strong></div></article>
+          <article class="stat-card"><span class="stat-icon stat-icon-success" aria-hidden="true">✓</span><div><p>Completed</p><strong id="completedCount">0</strong></div></article>
+          <article class="stat-card"><span class="stat-icon stat-icon-warning" aria-hidden="true">◷</span><div><p>Pending</p><strong id="pendingCount">0</strong></div></article>
+          <article class="stat-card"><span class="stat-icon stat-icon-danger" aria-hidden="true">!</span><div><p>Missed</p><strong id="missedCount">0</strong></div></article>
+        </div>
+
+        <div class="insights-grid">
+          <article class="panel weekly-panel">
+            <div class="panel-heading"><div><span class="eyebrow">WEEKLY PLAN</span><h2>Reminders by day</h2></div><span class="small-note">Scheduled</span></div>
+            <div class="weekly-bars" id="weeklyPlanChart" role="img" aria-label="Weekly reminder schedule"></div>
+          </article>
+          <article class="panel progress-panel">
+            <div class="panel-heading"><div><span class="eyebrow">TODAY</span><h2>Daily progress</h2></div></div>
+            <div class="progress-ring" id="adherenceRing" role="img" aria-label="Today's reminder status breakdown">
+              <svg class="progress-ring-svg" viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="pie-track" cx="60" cy="60" r="45"></circle>
+                <circle class="pie-segment completed" id="pieCompleted" cx="60" cy="60" r="45"></circle>
+                <circle class="pie-segment pending" id="piePending" cx="60" cy="60" r="45"></circle>
+                <circle class="pie-segment missed" id="pieMissed" cx="60" cy="60" r="45"></circle>
+              </svg>
+              <div class="progress-ring-content"><strong id="todayProgressPercent">0%</strong><span>complete</span></div>
+            </div>
+            <div class="progress-legend" aria-label="Reminder status counts">
+              <div><span class="legend-swatch completed"></span><span>Completed</span><strong id="progressCompletedCount">0</strong></div>
+              <div><span class="legend-swatch pending"></span><span>Pending</span><strong id="progressPendingCount">0</strong></div>
+              <div><span class="legend-swatch missed"></span><span>Missed</span><strong id="progressMissedCount">0</strong></div>
+            </div>
+            <p class="progress-summary" id="todayProgressSummary">0 of 0 reminders completed</p>
+          </article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="panel next-panel">
+            <div class="panel-heading"><div><span class="eyebrow">UP NEXT</span><h2>Next reminder</h2></div><span class="status-pill pending" id="nextReminderStatus">Pending</span></div>
+            <div class="next-reminder-content"><span class="medicine-mark" aria-hidden="true">Rx</span><div><h3 id="nextMedicineName">No upcoming reminder</h3><p id="nextMedicineDose">Add a reminder to get started</p><div class="next-time"><span aria-hidden="true">◷</span><strong id="nextReminderTime">--:--</strong></div></div></div>
+            <div class="countdown-box"><span>Reminder begins in</span><strong id="countdown">-- : -- : --</strong></div>
+          </article>
+          <article class="panel device-panel">
+            <div class="panel-heading"><div><span class="eyebrow">SYSTEM</span><h2>Device status</h2></div><span class="status-pill connected">Live</span></div>
+            <div class="device-row"><span>ESP32 device</span><strong id="deviceConnectionStatus">Checking...</strong></div>
+            <div class="device-row"><span>Last event</span><strong id="lastEventStatus">None</strong></div>
+            <div class="device-row"><span>Last refreshed</span><strong id="lastRefreshed">Just now</strong></div>
+          </article>
+        </div>
+
+        <article class="panel list-panel">
+          <div class="panel-heading"><div><span class="eyebrow">TODAY</span><h2>Medicine schedule</h2></div><button class="text-button" type="button" data-navigate="schedules">View all</button></div>
+          <div class="schedule-list" id="todayScheduleList"></div>
+        </article>
+        <article class="panel list-panel">
+          <div class="panel-heading"><div><span class="eyebrow">ACTIVITY</span><h2>Recent events</h2></div><button class="text-button" type="button" data-navigate="history">View history</button></div>
+          <div class="event-list" id="recentEventList"></div>
+        </article>
+      </section>
+
+      <section class="page-section" id="schedulesSection">
+        <div class="section-header"><div><h2>Medicine schedules</h2><p>Add, edit, or remove reminders.</p></div><button class="primary-button" type="button" data-open-modal><span aria-hidden="true">+</span>Add medicine</button></div>
+        <div class="medicine-grid" id="scheduleManagementList"></div>
+      </section>
+
+      <section class="page-section" id="historySection">
+        <div class="section-header"><div><h2>Event history</h2><p>Review reminders and medication activity.</p></div><label class="filter-control"><span>Filter</span><select id="eventFilter"><option value="all">All events</option><option value="opening">Opening detected</option><option value="acknowledged">Acknowledged</option><option value="missed">Possibly missed</option><option value="triggered">Reminder triggered</option></select></label></div>
+        <article class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>Time</th><th>Medicine</th><th>Event</th><th>Status</th></tr></thead><tbody id="historyTableBody"></tbody></table></div></article>
+      </section>
+
+      <section class="page-section" id="settingsSection">
+        <div class="section-header"><div><h2>Settings</h2><p>Manage local reminder preferences.</p></div></div>
+        <article class="panel settings-panel"><form id="settingsForm"><label for="missedWindow">Missed-reminder window</label><div class="input-suffix"><input id="missedWindow" type="number" min="10" max="3600" value="60"><span>seconds</span></div><small>A reminder is marked missed after this interval.</small><button class="primary-button" type="submit">Save settings</button></form></article>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="medicineModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-heading"><div><span class="eyebrow">SCHEDULE</span><h2 id="modalTitle">Add medicine</h2></div><button class="icon-button" id="closeModalButton" type="button" aria-label="Close dialog">×</button></div>
+      <form id="medicineForm">
+        <input id="medicineId" type="hidden">
+        <label class="form-field">Medicine name<input id="medicineName" type="text" placeholder="e.g. Vitamin D" required></label>
+        <label class="form-field">Dose or instructions<input id="medicineDose" type="text" placeholder="e.g. 1 tablet after breakfast" required></label>
+        <label class="form-field">Reminder time<input id="medicineTime" type="time" required></label>
+        <fieldset class="days-field"><legend>Scheduled days</legend><div class="day-selector"><label><input type="checkbox" value="Mon">Mon</label><label><input type="checkbox" value="Tue">Tue</label><label><input type="checkbox" value="Wed">Wed</label><label><input type="checkbox" value="Thu">Thu</label><label><input type="checkbox" value="Fri">Fri</label><label><input type="checkbox" value="Sat">Sat</label><label><input type="checkbox" value="Sun">Sun</label></div></fieldset>
+        <div class="modal-actions"><button class="secondary-button" id="cancelModalButton" type="button">Cancel</button><button class="primary-button" type="submit">Save reminder</button></div>
+      </form>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
