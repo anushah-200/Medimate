@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta
 
-# Configuration window: 45 seconds for classroom demos
-DEMO_WINDOW_SECONDS = 45
+# Configuration window: 60 seconds (matches server and settings default)
+DEMO_WINDOW_SECONDS = 60
 
 def evaluate_reminder_status(medicine_id, event_type, timestamp_str):
     """Evaluates state transitions based on incoming ESP32 events and time windows."""
     try:
-        event_time = datetime.fromisoformat(timestamp_str)
+        event_time = datetime.fromisoformat(timestamp_str.replace(" ", "T"))
     except ValueError:
         event_time = datetime.now()
 
@@ -22,5 +22,9 @@ def evaluate_reminder_status(medicine_id, event_type, timestamp_str):
     elif event_type == "button_acknowledged":
         print(f"[Logic] Button ACKNOWLEDGED for medicine {medicine_id} at {event_time}")
         return "Acknowledged"
+
+    elif event_type == "reminder_missed":
+        print(f"[Logic] Reminder MISSED for medicine {medicine_id} at {event_time}")
+        return "Missed"
 
     return "Unknown"

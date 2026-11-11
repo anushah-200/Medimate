@@ -18,6 +18,26 @@ def today_code():
     return DAYS[datetime.now().weekday()]
 
 
+def ensure_today_reminders(cursor):
+    """Ensure today's reminders exist in the DB for all medicines scheduled for today."""
+    today = today_str()
+    day_code = today_code()
+    cursor.execute("SELECT id, time, days FROM medicines")
+    for med_id, med_time, med_days in cursor.fetchall():
+        days_list = [d.strip() for d in med_days.split(",") if d.strip()]
+        if day_code in days_list:
+            cursor.execute(
+                "SELECT id FROM reminders WHERE medicine_id=? AND reminder_time LIKE ?",
+                (med_id, today + "%")
+            )
+            if not cursor.fetchone():
+                reminder_time = f"{today} {med_time}:00"
+                cursor.execute(
+                    "INSERT INTO reminders (medicine_id, reminder_time, status) VALUES (?,?,?)",
+                    (med_id, reminder_time, "pending")
+                )
+
+
 # ── Main page ────────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -33,6 +53,7 @@ def get_medicines():
     """Return all medicines with today's reminder status."""
     conn = get_connection()
     cursor = conn.cursor()
+    ensure_today_reminders(cursor)
     mark_expired_reminders(cursor)
 
     # For each medicine, pick the most actionable status for today.
@@ -85,10 +106,16 @@ def mark_expired_reminders(cursor):
     ).fetchall()
     for (reminder_id,) in expired:
         cursor.execute("UPDATE reminders SET status='missed' WHERE id=?", (reminder_id,))
+        # Avoid duplicate reminder_missed events
         cursor.execute(
-            "INSERT INTO events (reminder_id, event_type, timestamp) VALUES (?, 'reminder_missed', ?)",
-            (reminder_id, cutoff)
+            "SELECT id FROM events WHERE reminder_id=? AND event_type='reminder_missed'",
+            (reminder_id,)
         )
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO events (reminder_id, event_type, timestamp) VALUES (?, 'reminder_missed', ?)",
+                (reminder_id, cutoff)
+            )
 
 
 @app.route('/api/medicines', methods=['POST'])
@@ -296,16 +323,27 @@ def receive_esp32_event():
         reminder_id = cursor.lastrowid
 
     # Update reminder status based on the event received
-    if event_type == "button_acknowledged":
+    if event_type in ("button_acknowledged", "compartment_opened"):
         cursor.execute("UPDATE reminders SET status='completed' WHERE id=?", (reminder_id,))
     elif event_type == "reminder_missed":
         cursor.execute("UPDATE reminders SET status='missed' WHERE id=?", (reminder_id,))
 
-    # Log the event
-    cursor.execute(
-        "INSERT INTO events (reminder_id, event_type, timestamp) VALUES (?,?,?)",
-        (reminder_id, event_type, timestamp_str)
-    )
+    # Log the event (avoid duplicate consecutive missed events)
+    if event_type == "reminder_missed":
+        cursor.execute(
+            "SELECT id FROM events WHERE reminder_id=? AND event_type='reminder_missed'",
+            (reminder_id,)
+        )
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO events (reminder_id, event_type, timestamp) VALUES (?,?,?)",
+                (reminder_id, event_type, timestamp_str)
+            )
+    else:
+        cursor.execute(
+            "INSERT INTO events (reminder_id, event_type, timestamp) VALUES (?,?,?)",
+            (reminder_id, event_type, timestamp_str)
+        )
 
     # Update device status (single row — update if exists, insert if not)
     cursor.execute("UPDATE device_status SET status='Online', last_seen=?", (timestamp_str,))
@@ -329,6 +367,7 @@ def get_system_status():
     """Returns device connection status and latest event for the dashboard."""
     conn = get_connection()
     cursor = conn.cursor()
+    ensure_today_reminders(cursor)
     mark_expired_reminders(cursor)
     conn.commit()
 

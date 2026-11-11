@@ -18,7 +18,8 @@ def format_time(value):
 
 def get_connection(db_path=DB_PATH):
     """Open the SQLite database with foreign key support enabled."""
-    connection = sqlite3.connect(db_path)
+    connection = sqlite3.connect(db_path, timeout=10)
+    connection.execute("PRAGMA journal_mode = WAL")
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
 

@@ -201,8 +201,39 @@ function renderWeeklyPlan() {
 }
 
 function renderNextReminder() {
-  const now      = new Date();
-  const upcoming = todayMedicines().find(m => {
+  const now       = new Date();
+  const medicines = todayMedicines();
+  const windowMs  = (state.settings?.missedWindow || 60) * 1000;
+
+  // 1. Check if there is an actively ringing / due reminder right now
+  const dueNow = medicines.find(m => {
+    if (m.status !== "pending") return false;
+    const [h, min] = m.time.split(":").map(Number);
+    const at = new Date();
+    at.setHours(h, min, 0, 0);
+    const diff = now.getTime() - at.getTime();
+    return diff >= 0 && diff <= windowMs;
+  });
+
+  if (dueNow) {
+    el.nextName.textContent   = dueNow.name;
+    el.nextDose.textContent   = dueNow.dose;
+    el.nextTime.textContent   = formatTime(dueNow.time);
+    el.nextStatus.textContent = "DUE NOW";
+    el.nextStatus.className   = "status-pill missed";
+
+    const [h, min] = dueNow.time.split(":").map(Number);
+    const at = new Date();
+    at.setHours(h, min, 0, 0);
+    let secondsLeft = Math.max(0, Math.floor((windowMs - (now.getTime() - at.getTime())) / 1000));
+    const mm = Math.floor(secondsLeft / 60);
+    const ss = secondsLeft % 60;
+    el.countdown.textContent  = `TAKE NOW (${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")})`;
+    return;
+  }
+
+  // 2. Next, look for upcoming pending reminders later today
+  const upcoming = medicines.find(m => {
     const [h, min] = m.time.split(":").map(Number);
     const at = new Date();
     at.setHours(h, min, 0, 0);
@@ -211,7 +242,7 @@ function renderNextReminder() {
 
   if (!upcoming) {
     el.nextName.textContent   = "No upcoming reminder";
-    el.nextDose.textContent   = todayMedicines().length ? "You're all caught up for today." : "No medicines scheduled for today.";
+    el.nextDose.textContent   = medicines.length ? "You're all caught up for today." : "No medicines scheduled for today.";
     el.nextTime.textContent   = "--:--";
     el.nextStatus.textContent = "None";
     el.nextStatus.className   = "status-pill completed";
